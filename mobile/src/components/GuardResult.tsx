@@ -1,9 +1,6 @@
 // src/components/GuardResult.tsx
-// Resultado de validación — lo que ve el vigilante en la tablet.
-// Grande, legible de lejos, operable con una mano.
-
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { ValidateQRSuccess, ValidateQRFailure } from '../api/qrApi';
 import { colors, spacing, radius, fontSize } from '../theme';
 
@@ -13,23 +10,11 @@ type Props = {
 };
 
 const REASON_LABELS: Record<string, string> = {
-  expired:          'QR expirado — pedir al estudiante que regenere',
-  invalid:          'QR no válido',
-  user_not_found:   'Usuario no encontrado en el sistema',
-  wallet_not_found: 'Sin billetera asociada',
+  expired:              'QR expirado — pedir al estudiante que regenere',
+  invalid:              'QR no válido',
+  insufficient_balance: 'Saldo insuficiente',
+  wallet_not_found:     'Sin billetera asociada',
 };
-
-function Initials({ name }: { name: string }) {
-  const parts = name.trim().split(' ');
-  const initials = parts.length >= 2
-    ? parts[0][0] + parts[parts.length - 1][0]
-    : parts[0].slice(0, 2);
-  return (
-    <View style={styles.avatar}>
-      <Text style={styles.avatarText}>{initials.toUpperCase()}</Text>
-    </View>
-  );
-}
 
 export default function GuardResult({ result, onReset }: Props) {
 
@@ -52,41 +37,66 @@ export default function GuardResult({ result, onReset }: Props) {
   }
 
   // ─── Acceso permitido ───
-  const balanceFormatted = result.balance.toLocaleString('es-CO', {
+  const balanceFormatted = (result.remainingBalance ?? 0).toLocaleString('es-CO', {
     style: 'currency',
     currency: 'COP',
     minimumFractionDigits: 0,
   });
 
+  // Si authorized es false pero valid es true = saldo insuficiente
+  if (!result.authorized) {
+    return (
+      <View style={styles.container}>
+        <View style={[styles.card, styles.cardError]}>
+          <Text style={styles.bigIcon}>✗</Text>
+          <Text style={styles.titleError}>Acceso denegado</Text>
+          <Text style={styles.reasonText}>Saldo insuficiente</Text>
+          <View style={styles.balanceBox}>
+            <Text style={styles.balanceLabel}>Saldo actual</Text>
+            <Text style={[styles.balanceAmount, { color: '#991B1B' }]}>
+              {balanceFormatted}
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity style={[styles.btn, styles.btnGray]} onPress={onReset}>
+          <Text style={styles.btnText}>Escanear otro</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={[styles.card, styles.cardSuccess]}>
-        {/* Usuario */}
-        <View style={styles.userRow}>
-          {result.avatarUrl
-            ? <Image source={{ uri: result.avatarUrl }} style={styles.avatarImg} />
-            : <Initials name={result.userName} />
-          }
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{result.userName}</Text>
-            <Text style={styles.userEmail}>{result.userEmail}</Text>
-          </View>
+        {/* Ícono de éxito */}
+        <View style={styles.successIcon}>
+          <Text style={styles.successIconText}>✓</Text>
         </View>
+
+        <Text style={styles.titleSuccess}>Acceso autorizado</Text>
 
         {/* Saldo */}
         <View style={styles.balanceBox}>
-          <Text style={styles.balanceLabel}>Saldo disponible</Text>
+          <Text style={styles.balanceLabel}>Saldo restante</Text>
           <Text style={styles.balanceAmount}>{balanceFormatted}</Text>
         </View>
       </View>
 
       {/* Botones */}
       <View style={styles.btnRow}>
-        <TouchableOpacity style={[styles.btn, styles.btnDeny, { flex: 1 }]} onPress={onReset}>
+        <TouchableOpacity
+          style={[styles.btn, styles.btnDeny, { flex: 1 }]}
+          onPress={onReset}
+        >
           <Text style={styles.btnText}>Denegar</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, styles.btnAllow, { flex: 2 }]} onPress={onReset}>
-          <Text style={[styles.btnText, { fontSize: fontSize.lg }]}>✓ Permitir acceso</Text>
+        <TouchableOpacity
+          style={[styles.btn, styles.btnAllow, { flex: 2 }]}
+          onPress={onReset}
+        >
+          <Text style={[styles.btnText, { fontSize: fontSize.lg }]}>
+            ✓ Permitir acceso
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -104,6 +114,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     padding: spacing.lg,
     borderWidth: 3,
+    alignItems: 'center',
   },
   cardSuccess: {
     backgroundColor: colors.successBg,
@@ -112,8 +123,27 @@ const styles = StyleSheet.create({
   cardError: {
     backgroundColor: colors.errorBg,
     borderColor: colors.error,
-    alignItems: 'center',
     paddingVertical: spacing.xxl,
+  },
+  successIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: radius.full,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  successIconText: {
+    fontSize: 40,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  titleSuccess: {
+    fontSize: fontSize.xl,
+    fontWeight: '700',
+    color: '#14532D',
+    marginBottom: spacing.lg,
   },
   bigIcon: {
     fontSize: 64,
@@ -129,49 +159,14 @@ const styles = StyleSheet.create({
     fontSize: fontSize.md,
     color: '#B91C1C',
     textAlign: 'center',
-  },
-  userRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.full,
-    backgroundColor: colors.purple,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: '#FFFFFF',
-    fontSize: fontSize.xl,
-    fontWeight: '700',
-  },
-  avatarImg: {
-    width: 72,
-    height: 72,
-    borderRadius: radius.full,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: fontSize.xl,
-    fontWeight: '700',
-    color: '#14532D',
-    marginBottom: 2,
-  },
-  userEmail: {
-    fontSize: fontSize.sm,
-    color: '#166534',
+    marginBottom: spacing.md,
   },
   balanceBox: {
     backgroundColor: 'rgba(0,0,0,0.06)',
     borderRadius: radius.md,
     padding: spacing.md,
     alignItems: 'center',
+    width: '100%',
   },
   balanceLabel: {
     fontSize: fontSize.sm,
